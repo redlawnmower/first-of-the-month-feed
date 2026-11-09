@@ -2,9 +2,15 @@ name: Monthly video pick
 
 on:
   schedule:
-    # 26th of every month, 17:00 UTC. Gives a few days of buffer before the 1st.
-    - cron: "0 17 26 * *"
-  workflow_dispatch: {}
+    # The 1st of every month, every 2 hours from 09:00 to 19:00 UTC
+    # (4 AM–2 PM Eastern / 1 AM–11 AM Pacific). Each run re-ranks by fresh view counts.
+    - cron: "0 9,11,13,15,17,19 1 * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Run even if today isn't the 1st (for testing; ignores the today-only filter)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -16,7 +22,7 @@ concurrency:
 jobs:
   pick:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -24,9 +30,10 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Pick this month's video
+      - name: Pick the video
         env:
-          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
         run: node scripts/pick-video.mjs
 
       - name: Commit if changed
@@ -38,5 +45,5 @@ jobs:
           git config user.name "first-of-the-month-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add videos.json
-          git commit -m "Monthly video pick: $(date -u +%Y-%m-%d)"
+          git commit -m "Video pick: $(date -u +%Y-%m-%dT%H:%MZ)"
           git push
